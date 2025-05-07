@@ -9,18 +9,22 @@ F90 ?= $(notdir $(shell command -v ifort 2>/dev/null || \
 
 # Check if a valid compiler was found
 ifeq ($(F90), notfound)
-    $(error No Fortran compiler found.)
+	$(error No Fortran compiler found.)
 endif
 
 # Compiler flags
 ifeq ($(F90), ifort)
-    FFLAGS := -warn all -O3 -ipo -fno-alias -module $(BUILD_DIR)
-    FLAGSDEBUG := -g -check all -traceback
+	FFLAGS := -warn all -O3 -ipo -fno-alias -module $(BUILD_DIR)
+	ifeq ($(DEBUG), 1)
+		FFLAGS += -g -check all -traceback
+	endif
 endif
 
 ifeq ($(F90), gfortran)
-    FFLAGS := -Wall -O3 -flto -J $(BUILD_DIR)
-    FLAGSDEBUG := -g -fcheck=all
+	FFLAGS := -Wall -O3 -flto -J $(BUILD_DIR)
+	ifeq ($(DEBUG), 1)
+		FFLAGS += -g -fcheck=all
+	endif
 endif
 
 # All object files
