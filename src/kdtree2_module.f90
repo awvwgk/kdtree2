@@ -130,8 +130,6 @@ module kdtree2_module
     integer, pointer      :: ind(:)     ! temp pointer to indexes
   end type tree_search_record
 
-  type(tree_search_record), save, target :: sr   ! A GLOBAL VARIABLE for search
-
 contains
 
   function kdtree2_create(input_data, dim, sort, rearrange) result(mr)
@@ -565,6 +563,7 @@ contains
     real(kdkind), target, intent(In)    :: qv(:)
     integer, intent(In)         :: nn
     type(kdtree2_result), target :: results(:)
+    type(tree_search_record) :: sr
 
     sr%ballsize = huge(1.0)
     sr%qv => qv
@@ -587,10 +586,10 @@ contains
     end if
     sr%dimen = tp%dimen
 
-    call validate_query_storage(nn)
+    call validate_query_storage(sr, nn)
     sr%pq = pq_create(results)
 
-    call search(tp%root)
+    call search(sr, tp%root)
 
     if (tp%sort) then
       call kdtree2_sort_results(nn, results)
@@ -606,6 +605,7 @@ contains
     type(kdtree2), pointer        :: tp
     integer, intent(In)           :: idxin, correltime, nn
     type(kdtree2_result), target   :: results(:)
+    type(tree_search_record) :: sr
 
     allocate (sr%qv(tp%dimen))
     sr%qv = tp%the_data(:, idxin) ! copy the vector
@@ -630,10 +630,10 @@ contains
       sr%Data => tp%the_data
     end if
 
-    call validate_query_storage(nn)
+    call validate_query_storage(sr, nn)
     sr%pq = pq_create(results)
 
-    call search(tp%root)
+    call search(sr, tp%root)
 
     if (tp%sort) then
       call kdtree2_sort_results(nn, results)
@@ -659,6 +659,7 @@ contains
     integer, intent(out)         :: nfound
     integer, intent(In)         :: nalloc
     type(kdtree2_result), target :: results(:)
+    type(tree_search_record) :: sr
 
     !
     sr%qv => qv
@@ -670,7 +671,7 @@ contains
 
     sr%results => results
 
-    call validate_query_storage(nalloc)
+    call validate_query_storage(sr, nalloc)
     sr%nalloc = nalloc
     sr%overflow = .false.
     sr%ind => tp%ind
@@ -688,7 +689,7 @@ contains
     !sr%il = -1               ! set to invalid indexes
     !
 
-    call search(tp%root)
+    call search(sr, tp%root)
     nfound = sr%nfound
     if (tp%sort) then
       call kdtree2_sort_results(nfound, results)
@@ -716,6 +717,7 @@ contains
     real(kdkind), intent(in)             :: r2
     integer, intent(out)         :: nfound
     type(kdtree2_result), target :: results(:)
+    type(tree_search_record) :: sr
     ! ..
     ! .. Intrinsic Functions ..
     intrinsic HUGE
@@ -733,7 +735,7 @@ contains
     sr%nalloc = nalloc
     sr%overflow = .false.
 
-    call validate_query_storage(nalloc)
+    call validate_query_storage(sr, nalloc)
 
     !    sr%dsl = HUGE(sr%dsl)    ! set to huge positive values
     !    sr%il = -1               ! set to invalid indexes
@@ -754,7 +756,7 @@ contains
     !sr%il = -1               ! set to invalid indexes
     !
 
-    call search(tp%root)
+    call search(sr, tp%root)
     nfound = sr%nfound
     if (tp%sort) then
       call kdtree2_sort_results(nfound, results)
@@ -776,6 +778,7 @@ contains
     real(kdkind), target, intent(In) :: qv(:)
     real(kdkind), intent(in)          :: r2
     integer                   :: nfound
+    type(tree_search_record) :: sr
     ! ..
     ! .. Intrinsic Functions ..
     intrinsic HUGE
@@ -807,7 +810,7 @@ contains
     !
     sr%overflow = .false.
 
-    call search(tp%root)
+    call search(sr, tp%root)
 
     nfound = sr%nfound
 
@@ -823,6 +826,7 @@ contains
     integer, intent(In)    :: correltime, idxin
     real(kdkind), intent(in)        :: r2
     integer                 :: nfound
+    type(tree_search_record) :: sr
     ! ..
     ! ..
     ! .. Intrinsic Functions ..
@@ -857,17 +861,18 @@ contains
     !
     sr%overflow = .false.
 
-    call search(tp%root)
+    call search(sr, tp%root)
 
     nfound = sr%nfound
 
     return
   end function kdtree2_r_count_around_point
 
-  subroutine validate_query_storage(n)
+  subroutine validate_query_storage(sr, n)
     !
     ! make sure we have enough storage for n
     !
+    type(tree_search_record), intent(in) :: sr
     integer, intent(in) :: n
 
     if (size(sr%results, 1) .lt. n) then
@@ -894,7 +899,7 @@ contains
     res = sum((iv(1:d) - qv(1:d))**2)
   end function square_distance
 
-  recursive subroutine search(node)
+  recursive subroutine search(sr, node)
     !
     ! This is the innermost core routine of the kd-tree search.  Along
     ! with "process_terminal_node", it is the performance bottleneck.
@@ -902,6 +907,7 @@ contains
     ! This version uses a logically complete secondary search of
     ! "box in bounds", whether the sear
     !
+    type(tree_search_record), intent(inout), target :: sr
     type(Tree_node), pointer          :: node
     ! ..
     type(tree_node), pointer            :: ncloser, nfarther
@@ -916,9 +922,9 @@ contains
     if ((associated(node%left) .and. associated(node%right)) .eqv. .false.) then
       ! we are on a terminal node
       if (sr%nn .eq. 0) then
-        call process_terminal_node_fixedball(node)
+        call process_terminal_node_fixedball(sr, node)
       else
-        call process_terminal_node(node)
+        call process_terminal_node(sr, node)
       end if
     else
       ! we are not on a terminal node
@@ -938,7 +944,7 @@ contains
 !          extra = qval- node%cut_val_left
       end if
 
-      if (associated(ncloser)) call search(ncloser)
+      if (associated(ncloser)) call search(sr, ncloser)
 
       ! we may need to search the second node.
       if (associated(nfarther)) then
@@ -964,7 +970,7 @@ contains
           !
           ! if we are still here then we need to search mroe.
           !
-          call search(nfarther)
+          call search(sr, nfarther)
         end if
       end if
     end if
@@ -1013,11 +1019,12 @@ contains
     end associate
   end function box_in_search_range
 
-  subroutine process_terminal_node(node)
+  subroutine process_terminal_node(sr, node)
     !
     ! Look for actual near neighbors in 'node', and update
     ! the search results on the sr data structure.
     !
+    type(tree_search_record), intent(inout), target :: sr
     type(tree_node), pointer          :: node
     !
     real(kdkind), pointer          :: qv(:)
@@ -1028,6 +1035,7 @@ contains
     real(kdkind)                   :: ballsize, sd, newpri
     logical                :: rearrange
     type(pq), pointer      :: pqp
+
     !
     ! copy values from sr to local variables
     !
@@ -1117,12 +1125,13 @@ contains
 
   end subroutine process_terminal_node
 
-  subroutine process_terminal_node_fixedball(node)
+  subroutine process_terminal_node_fixedball(sr, node)
     !
     ! Look for actual near neighbors in 'node', and update
     ! the search results on the sr data structure, i.e.
     ! save all within a fixed ball.
     !
+    type(tree_search_record), intent(inout) :: sr
     type(tree_node), pointer          :: node
     !
     real(kdkind), pointer          :: qv(:)
