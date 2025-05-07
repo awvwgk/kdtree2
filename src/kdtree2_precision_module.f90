@@ -20,7 +20,7 @@ module kdtree2_precision_module
   ! and if you comment out kdkind = dp
   ! you get double precision.
   !
-  integer, parameter :: kdkind = sp
-  !integer, parameter :: kdkind = dp
+  ! integer, parameter :: kdkind = sp
+  integer, parameter :: kdkind = dp
 
 end module kdtree2_precision_module
