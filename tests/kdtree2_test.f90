@@ -15,7 +15,7 @@ contains
     !  using any specific search mode. 
     !
 
-    type(kdtree2), pointer :: tree
+    type(kdtree2) :: tree
     integer, intent(in)               :: nsearch ! how many reference points
     integer, intent(in)               :: mode    ! what kind of search
     integer, intent(in)               :: nn      ! number of neighbors 
@@ -81,7 +81,7 @@ contains
     ! Will call "time_search" with increasing numbers of reference points 
     ! until CPU time taken is at least 1 second.
     !
-    type(kdtree2), pointer :: tree
+    type(kdtree2) :: tree
     integer, intent(in)               :: mode    ! what kind of search
     integer, intent(in)               :: nn      ! number of neighbors 
     real(kdkind), intent(in)                  :: r2      ! radius^2
@@ -110,7 +110,7 @@ contains
     ! 'r2'
     !
     !  log(avg) = 1/navg log(N_within_ball(i))
-    type(kdtree2), pointer :: tree
+    type(kdtree2) :: tree
     integer,intent(in) :: navg
     real(kdkind), intent(in)   :: r2
     !
@@ -137,7 +137,7 @@ program kd_tree_test
   real(kdkind), dimension(:,:), allocatable :: my_array
   real(kdkind), allocatable :: query_vec(:)
 
-  type(kdtree2), pointer :: tree, tree2, tree3
+  type(kdtree2) :: tree, tree2, tree3
   ! this is how you declare a tree in your main program
 
   integer :: k
@@ -162,17 +162,17 @@ program kd_tree_test
   call random_number(my_array)  !fills entire array with built-in-randoms
 
   call cpu_time(t0)
-  tree => kdtree2_create(my_array,sort=.false.,rearrange=.false.)  ! this is how you create a tree. 
+  tree = kdtree2_create(my_array,sort=.false.,rearrange=.false.)  ! this is how you create a tree. 
   call cpu_time(t1)
   write (*,*) n/(t1-t0), ' points per second built for non-rearranged tree.'
 
   call cpu_time(t0)
-  tree2 => kdtree2_create(my_array,sort=.false.,rearrange=.true.)  ! this is how you create a tree. 
+  tree2 = kdtree2_create(my_array,sort=.false.,rearrange=.true.)  ! this is how you create a tree. 
   call cpu_time(t1)
   write (*,*) n/(t1-t0), ' points per second built for rearranged tree.'
 
   call cpu_time(t0)
-  tree3 => kdtree2_create(my_array,sort=.true.,rearrange=.true.)  ! this is how you create a tree. 
+  tree3 = kdtree2_create(my_array,sort=.true.,rearrange=.true.)  ! this is how you create a tree. 
   call cpu_time(t1)
   write (*,*) n/(t1-t0), ' points per second built for 2nd rearranged tree.'
 

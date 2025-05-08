@@ -2,7 +2,7 @@ program kdtree_benchmark
   use kdtree2_module
   implicit none
 
-  type(kdtree2), pointer :: tree
+  type(kdtree2) :: tree
   real(kdkind), dimension(:,:), allocatable :: data, queries
   type(kdtree2_result) :: results(1)
 
@@ -30,7 +30,7 @@ program kdtree_benchmark
 
     ! Populate tree
     call cpu_time(t0)
-    tree => kdtree2_create(data,sort=.true.,rearrange=.true.)
+    tree = kdtree2_create(data,sort=.true.,rearrange=.true.)
     call cpu_time(t1)
 
     ! Query random vectors

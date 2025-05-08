@@ -156,7 +156,7 @@ contains
     !                      building takes longer, and extra memory is used.
     !
     ! .. Function Return Cut_value ..
-    type(kdtree2), pointer :: mr
+    type(kdtree2) :: mr
     integer, intent(in), optional      :: dim
     logical, intent(in), optional      :: sort
     logical, intent(in), optional      :: rearrange
@@ -166,7 +166,6 @@ contains
     !
     integer :: i
     ! ..
-    allocate (mr)
     mr%the_data => input_data
     ! pointer assignment
 
@@ -219,7 +218,7 @@ contains
   end function kdtree2_create
 
   subroutine build_tree(tp)
-    type(kdtree2), pointer :: tp
+    type(kdtree2), intent(inout) :: tp
     ! ..
     integer :: j
     type(tree_node), pointer :: dummy => null()
@@ -236,7 +235,7 @@ contains
     type(tree_node), pointer :: res
     ! ..
     ! .. Structure Arguments ..
-    type(kdtree2), pointer :: tp
+    type(kdtree2), intent(inout) :: tp
     type(tree_node), pointer           :: parent
     ! ..
     ! .. Scalar Arguments ..
@@ -470,7 +469,7 @@ contains
     ! Return lower bound in 'smin', and upper in 'smax',
     ! ..
     ! .. Structure Arguments ..
-    type(kdtree2), pointer :: tp
+    type(kdtree2), intent(in) :: tp
     type(interval), intent(out) :: interv
     ! ..
     ! .. Scalar Arguments ..
@@ -516,7 +515,7 @@ contains
   subroutine kdtree2_destroy(tp)
     ! Deallocates all memory for the tree, except input data matrix
     ! .. Structure Arguments ..
-    type(kdtree2), pointer :: tp
+    type(kdtree2), intent(inout) :: tp
     ! ..
     call destroy_node(tp%root)
 
@@ -528,7 +527,6 @@ contains
       nullify (tp%rearranged_data)
     end if
 
-    deallocate (tp)
     return
 
   contains
@@ -559,7 +557,7 @@ contains
     ! Find the 'nn' vectors in the tree nearest to 'qv' in euclidean norm
     ! returning their indexes and distances in 'indexes' and 'distances'
     ! arrays already allocated passed to this subroutine.
-    type(kdtree2), pointer      :: tp
+    type(kdtree2), intent(in) :: tp
     real(kdkind), intent(In)    :: qv(:)
     integer, intent(In)         :: nn
     type(kdtree2_result), target :: results(:)
@@ -602,7 +600,7 @@ contains
     ! Find the 'nn' vectors in the tree nearest to point 'idxin',
     ! with correlation window 'correltime', returing results in
     ! results(:), which must be pre-allocated upon entry.
-    type(kdtree2), pointer        :: tp
+    type(kdtree2), intent(in) :: tp
     integer, intent(In)           :: idxin, correltime, nn
     type(kdtree2_result), target   :: results(:)
     type(tree_search_record) :: sr
@@ -653,7 +651,7 @@ contains
     !  the smallest ball inside norm r^2
     !
     ! Results are NOT sorted unless tree was created with sort option.
-    type(kdtree2), pointer      :: tp
+    type(kdtree2), intent(in) :: tp
     real(kdkind), target, intent(In)    :: qv(:)
     real(kdkind), intent(in)             :: r2
     integer, intent(out)         :: nfound
@@ -712,7 +710,7 @@ contains
     !
     ! Results are NOT sorted unless tree was created with sort option.
     !
-    type(kdtree2), pointer      :: tp
+    type(kdtree2), intent(in) :: tp
     integer, intent(In)         :: idxin, correltime, nalloc
     real(kdkind), intent(in)             :: r2
     integer, intent(out)         :: nfound
@@ -774,7 +772,7 @@ contains
 
   function kdtree2_r_count(tp, qv, r2) result(nfound)
     ! Count the number of neighbors within square distance 'r2'.
-    type(kdtree2), pointer   :: tp
+    type(kdtree2), intent(in) :: tp
     real(kdkind), target, intent(In) :: qv(:)
     real(kdkind), intent(in)          :: r2
     integer                   :: nfound
@@ -822,7 +820,7 @@ contains
     ! Count the number of neighbors within square distance 'r2' around
     ! point 'idxin' with decorrelation time 'correltime'.
     !
-    type(kdtree2), pointer :: tp
+    type(kdtree2), intent(in) :: tp
     integer, intent(In)    :: correltime, idxin
     real(kdkind), intent(in)        :: r2
     integer                 :: nfound
@@ -1143,7 +1141,7 @@ contains
     ! only use this subroutine for testing, as it is SLOW!  The
     ! whole point of a k-d tree is to avoid doing what this subroutine
     ! does.
-    type(kdtree2), pointer :: tp
+    type(kdtree2), intent(in) :: tp
     real(kdkind), intent(In)       :: qv(:)
     integer, intent(In)    :: nn
     type(kdtree2_result)    :: results(:)
@@ -1182,7 +1180,7 @@ contains
     ! only use this subroutine for testing, as it is SLOW!  The
     ! whole point of a k-d tree is to avoid doing what this subroutine
     ! does.
-    type(kdtree2), pointer :: tp
+    type(kdtree2), intent(in) :: tp
     real(kdkind), intent(In)       :: qv(:)
     real(kdkind), intent(In)       :: r2
     integer, intent(out)    :: nfound
