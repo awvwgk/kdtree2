@@ -868,7 +868,6 @@ contains
     type(tree_node), intent(in)             :: node
     integer, intent(in)                     :: n_max
     type(kdtree2_result), intent(inout)     :: results(n_max)
-    integer                                 :: nfound
     integer                                 :: i, indexofi, k
     real(kdkind)                            :: sd
 
@@ -915,20 +914,17 @@ contains
         if (abs(indexofi - sr%centeridx) < sr%correltime) cycle mainloop
       end if
 
-      nfound = nfound + 1
-      if (nfound .gt. n_max) then
+      sr%nfound = sr%nfound + 1
+      if (sr%nfound .gt. n_max) then
         ! oh nuts, we have to add another one to the tree but
         ! there isn't enough room.
         sr%overflow = .true.
       else
-        results(nfound)%dis = sd
-        results(nfound)%idx = indexofi
+        results(sr%nfound)%dis = sd
+        results(sr%nfound)%idx = indexofi
       end if
     end do mainloop
-    !
-    ! Reset sr variables which may have changed during loop
-    !
-    sr%nfound = nfound
+
   end subroutine process_terminal_node_fixedball
 
   ! Find the 'n' nearest neighbors to 'qv' by exhaustive search. only use this
