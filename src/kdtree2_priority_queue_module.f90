@@ -300,46 +300,6 @@ contains
 
   end function pq_insert
 
-  subroutine pq_adjust_heap(a, i)
-    type(pq), intent(inout) :: a
-    integer, intent(in) :: i
-    !
-    ! nominally arguments (a,i), but specialize for a=1
-    !
-    ! This routine assumes that the trees with roots 2 and 3 are already heaps, i.e.
-    ! the children of '1' are heaps.  When the procedure is completed, the
-    ! tree rooted at 1 is a heap.
-    real(kdkind) :: prichild
-    integer :: parent, child, N
-
-    type(kdtree2_result) :: e
-
-    e = a%elems(i)
-
-    parent = i
-    child = 2*i
-    N = a%heap_size
-
-    do while (child .le. N)
-      if (child .lt. N) then
-        if (a%elems(child)%dis .lt. a%elems(child + 1)%dis) then
-          child = child + 1
-        end if
-      end if
-      prichild = a%elems(child)%dis
-      if (e%dis .ge. prichild) then
-        exit
-      else
-        ! move child into parent.
-        a%elems(parent) = a%elems(child)
-        parent = child
-        child = 2*parent
-      end if
-    end do
-    a%elems(parent) = e
-
-  end subroutine pq_adjust_heap
-
   real(kdkind) function pq_replace_max(a, dis, idx)
     !
     ! Replace the extant maximum priority element
