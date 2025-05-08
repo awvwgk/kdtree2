@@ -9,7 +9,7 @@ module time_kdtree
   use kdtree2_module
 contains
 
-  real function time_search(tree,nsearch,mode, nn, r2)
+  real(kdkind) function time_search(tree,nsearch,mode, nn, r2)
     !
     !  Return CPU time, in seconds, for searching 'nsearch' reference points
     !  using any specific search mode. 
@@ -23,7 +23,7 @@ contains
     !
     real(kdkind) :: qv(tree%dimen), rv               ! query vector, random variate
     integer :: i, random_loc, nf
-    real    :: t0, t1
+    real(kdkind) :: t0, t1
     type(kdtree2_result), allocatable :: results(:) 
 
     real(kind(0.0d0)) :: nftotal
@@ -74,7 +74,7 @@ contains
     return
   end function time_search
 
-  real function searches_per_second(tree,mode,nn,r2) result(res)
+  real(kdkind) function searches_per_second(tree,mode,nn,r2) result(res)
     !
     !
     ! return estimated number of searches per second.
@@ -87,7 +87,7 @@ contains
     real(kdkind), intent(in)                  :: r2      ! radius^2
     !
     integer :: nsearch
-    real    :: time_taken
+    real(kdkind) :: time_taken
 
     nsearch = 50  ! start with 50 reference points
     do
@@ -98,14 +98,14 @@ contains
           nsearch = nsearch * 5
           cycle
        else
-          res = real(nsearch) / time_taken
+          res = real(nsearch, kdkind) / time_taken
           return
        end if
     end do
     return
   end function searches_per_second
 
-  real function average_number_within_ball(tree,navg,r2) result(res)
+  real(kdkind) function average_number_within_ball(tree,navg,r2) result(res)
     ! return the arithmetical average number of points within ball of size
     ! 'r2'
     !
@@ -120,10 +120,10 @@ contains
     do i=1,navg
        call random_number(qv)
        cnt = kdtree2_r_count(tree,qv,r2)
-       if (cnt .gt. 0)  sum = sum + real(cnt)
+       if (cnt .gt. 0)  sum = sum + real(cnt, kdkind)
     end do
 
-    res = sum/real(navg)
+    res = sum/real(navg, kdkind)
     return
   end function average_number_within_ball
 
@@ -144,11 +144,11 @@ program kd_tree_test
 
   type(kdtree2_result),allocatable :: results(:), resultsb(:)
   integer   :: nnbrute, rind
-  real      :: t0, t1, sps, avgnum, maxdeviation
+  real(kdkind) :: t0, t1, sps, avgnum, maxdeviation
   real(kdkind) :: rv 
   integer, parameter  :: nnn = 5
   integer, parameter  :: nr2 = 5
-  real r2array(5)
+  real(kdkind) :: r2array(5)
   data r2array / 1.0e-4,1.0e-3,5.0e-3,1.0e-2,2.0e-2 / 
   integer   :: nnarray(5)
   data nnarray / 1, 5, 10, 25, 500/ 
@@ -164,17 +164,17 @@ program kd_tree_test
   call cpu_time(t0)
   tree => kdtree2_create(my_array,sort=.false.,rearrange=.false.)  ! this is how you create a tree. 
   call cpu_time(t1)
-  write (*,*) real(n)/real(t1-t0), ' points per second built for non-rearranged tree.'
+  write (*,*) n/(t1-t0), ' points per second built for non-rearranged tree.'
 
   call cpu_time(t0)
   tree2 => kdtree2_create(my_array,sort=.false.,rearrange=.true.)  ! this is how you create a tree. 
   call cpu_time(t1)
-  write (*,*) real(n)/real(t1-t0), ' points per second built for rearranged tree.'
+  write (*,*) n/(t1-t0), ' points per second built for rearranged tree.'
 
   call cpu_time(t0)
   tree3 => kdtree2_create(my_array,sort=.true.,rearrange=.true.)  ! this is how you create a tree. 
   call cpu_time(t1)
-  write (*,*) real(n)/real(t1-t0), ' points per second built for 2nd rearranged tree.'
+  write (*,*) n/(t1-t0), ' points per second built for 2nd rearranged tree.'
 
   nnbrute = 50
   allocate(results(nnbrute), resultsb(nnbrute))
