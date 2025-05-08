@@ -767,7 +767,7 @@ contains
     !
     type(kdtree2), intent(in) :: tp
     type(tree_search_record), intent(inout) :: sr
-    type(Tree_node), pointer          :: node
+    type(Tree_node), intent(in) :: node
     integer, intent(in) :: n_max
     type(kdtree2_result), intent(inout) :: results(n_max)
     ! ..
@@ -856,7 +856,7 @@ contains
     !
     type(kdtree2), intent(in) :: tp
     type(tree_search_record), intent(inout) :: sr
-    type(tree_node), pointer          :: node
+    type(tree_node), intent(in) :: node
     !
     integer                :: i, indexofi, k
     real(kdkind)                   :: sd, newpri
@@ -933,7 +933,7 @@ contains
     !
     type(kdtree2), intent(in) :: tp
     type(tree_search_record), intent(inout) :: sr
-    type(tree_node), pointer          :: node
+    type(tree_node), intent(in) :: node
     integer, intent(in) :: n_max
     type(kdtree2_result), intent(inout) :: results(n_max)
     !
