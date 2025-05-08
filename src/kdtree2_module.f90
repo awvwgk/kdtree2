@@ -27,56 +27,58 @@ module kdtree2_module
   !-------------DATA TYPE, CREATION, DELETION---------------------
   public :: kdkind
   public :: kdtree2, kdtree2_result, tree_node, kdtree2_create, kdtree2_destroy
-  !---------------------------------------------------------------
+
   !-------------------SEARCH ROUTINES-----------------------------
-  public :: kdtree2_n_nearest, kdtree2_n_nearest_around_point
   ! Return fixed number of nearest neighbors around arbitrary vector,
   ! or extant point in dataset, with decorrelation window.
-  !
-  public :: kdtree2_r_nearest, kdtree2_r_nearest_around_point
-  ! Return points within a fixed ball of arb vector/extant point
-  !
-  public :: kdtree2_sort_results
-  ! Sort, in order of increasing distance, rseults from above.
-  !
-  public :: kdtree2_r_count, kdtree2_r_count_around_point
-  ! Count points within a fixed ball of arb vector/extant point
-  !
-  public :: kdtree2_n_nearest_brute_force, kdtree2_r_nearest_brute_force
-  ! brute force of kdtree2_[n|r]_nearest
-  !----------------------------------------------------------------
+  public :: kdtree2_n_nearest, kdtree2_n_nearest_around_point
 
-  integer, parameter :: bucket_size = 12
+
+  ! Return points within a fixed ball of arb vector/extant point
+  public :: kdtree2_r_nearest, kdtree2_r_nearest_around_point
+
+  ! Sort, in order of increasing distance, rseults from above.
+  public :: kdtree2_sort_results
+
+  ! Count points within a fixed ball of arb vector/extant point
+  public :: kdtree2_r_count, kdtree2_r_count_around_point
+
+  ! brute force of kdtree2_[n|r]_nearest
+  public :: kdtree2_n_nearest_brute_force, kdtree2_r_nearest_brute_force
+
   ! The maximum number of points to keep in a terminal node.
+  integer, parameter :: bucket_size = 12
 
   type interval
     real(kdkind) :: lower, upper
   end type interval
 
+  ! An internal tree node
   type :: tree_node
-    ! an internal tree node
+
     private
+    ! The dimension to cut
     integer :: cut_dim
-    ! the dimension to cut
+    ! Where to cut the dimension
     real(kdkind) :: cut_val
-    ! where to cut the dimension
+    ! Improved cutoffs knowing the spread in child boxes.
     real(kdkind) :: cut_val_left, cut_val_right
-    ! improved cutoffs knowing the spread in child boxes.
+
+    ! Child pointers
+    ! Points included in this node are indexes[k] with k \in [l,u]
     integer :: l, u
     type(tree_node), pointer :: left, right
     type(interval), allocatable :: box(:)
-    ! child pointers
-    ! Points included in this node are indexes[k] with k \in [l,u]
-
   end type tree_node
 
+  ! Global information about the tree, one per tree
   type :: kdtree2
-    ! Global information about the tree, one per tree
+     ! dimensionality and total # of points
     integer :: dimen = 0, n = 0
-    ! dimensionality and total # of points
-    real(kdkind), pointer :: the_data(:, :) => null()
+
     ! pointer to the actual data array
-    !
+    real(kdkind), pointer :: the_data(:, :) => null()
+
     !  IMPORTANT NOTE:  IT IS DIMENSIONED   the_data(1:d,1:N)
     !  which may be opposite of what may be conventional.
     !  This is, because in Fortran, the memory layout is such that
@@ -88,33 +90,31 @@ module kdtree2_module
     !  memory cache locality, and hence search speed, and may enable
     !  vectorization on some processors and compilers.
 
-    integer, allocatable :: ind(:)
-    ! permuted index into the data, so that indexes[l..u] of some
+    ! Permuted index into the data, so that indexes[l..u] of some
     ! bucket represent the indexes of the actual points in that
     ! bucket.
-    logical       :: sort = .false.
+    integer, allocatable :: ind(:)
+
     ! do we always sort output results?
-    logical       :: rearrange = .false.
-    real(kdkind), pointer :: rearranged_data(:, :) => null()
+    logical       :: sort = .false.
+
     ! if (rearrange .eqv. .true.) then rearranged_data has been
     ! created so that rearranged_data(:,i) = the_data(:,ind(i)),
     ! permitting search to use more cache-friendly rearranged_data, at
     ! some initial computation and storage cost.
-    real(kdkind), pointer :: data_ptr(:, :) => null()
+    logical       :: rearrange = .false.
+    real(kdkind), pointer :: rearranged_data(:, :) => null()
+
     ! Points to the_data or rearranged_data, depending on the rearrange flag
+    real(kdkind), pointer :: data_ptr(:, :) => null()
+
+    ! Root pointer of the tree
     type(tree_node), pointer :: root => null()
-    ! root pointer of the tree
   end type kdtree2
 
+  ! One of these is created for each search.
   type :: tree_search_record
-    !
-    ! One of these is created for each search.
-    !
     private
-    !
-    ! Many fields are copied from the tree structure, in order to
-    ! speed up the search.
-    !
     integer           :: nn, nfound
     real(kdkind)      :: ballsize
     integer           :: centeridx = 999, correltime = 9999
@@ -148,18 +148,14 @@ contains
   !                      default=.true., as it speeds searches, but
   !                      building takes longer, and extra memory is used.
   function kdtree2_create(input_data, dim, sort, rearrange) result(mr)
-    type(kdtree2) :: mr
-    integer, intent(in), optional      :: dim
-    logical, intent(in), optional      :: sort
-    logical, intent(in), optional      :: rearrange
-    ! ..
-    ! .. Array Arguments ..
-    real(kdkind), target :: input_data(:, :)
-    !
-    integer :: i
-    ! ..
+    type(kdtree2)                 :: mr
+    integer, intent(in), optional :: dim
+    logical, intent(in), optional :: sort
+    logical, intent(in), optional :: rearrange
+    real(kdkind), target          :: input_data(:, :)
+    integer                       :: i
+
     mr%the_data => input_data
-    ! pointer assignment
 
     if (present(dim)) then
       mr%dimen = dim
@@ -169,7 +165,6 @@ contains
     mr%n = size(input_data, 2)
 
     if (mr%dimen > mr%n) then
-      !  unlikely to be correct
       write (*, *) 'KD_TREE_TRANS: likely user error.'
       write (*, *) 'KD_TREE_TRANS: You passed in matrix with D=', mr%dimen
       write (*, *) 'KD_TREE_TRANS: and N=', mr%n
@@ -208,10 +203,9 @@ contains
 
   subroutine build_tree(tp)
     type(kdtree2), intent(inout) :: tp
-    ! ..
-    integer :: j
-    type(tree_node), pointer :: dummy => null()
-    ! ..
+    integer                      :: j
+    type(tree_node), pointer     :: dummy => null()
+
     allocate(tp%ind(tp%n))
     do concurrent (j = 1:tp%n)
       tp%ind(j) = j
@@ -278,21 +272,17 @@ contains
         end if
       end do
 
-      c = maxloc(res%box(1:dimen)%upper - res%box(1:dimen)%lower, 1)
-      !
       ! c is the identity of which coordinate has the greatest spread.
-      !
+      c = maxloc(res%box(1:dimen)%upper - res%box(1:dimen)%lower, 1)
 
       if (.false.) then
         ! select exact median to have fully balanced tree.
         m = (l + u)/2
         call select_on_coordinate(tp%the_data, tp%ind, c, m, l, u)
       else
-        !
         ! select point halfway between min and max, as per A. Moore,
         ! who says this helps in some degenerate cases, or
         ! actual arithmetic average.
-        !
         if (.true.) then
           ! actually compute average
           average = sum(tp%the_data(c, tp%ind(l:u)))/real(u - l + 1, kdkind)
@@ -308,7 +298,6 @@ contains
       res%cut_dim = c
       res%l = l
       res%u = u
-!         res%cut_val = tp%the_data(c,tp%ind(m))
 
       res%left => build_tree_for_range(tp, l, m, res)
       res%right => build_tree_for_range(tp, m + 1, u, res)
@@ -358,7 +347,7 @@ contains
 
     integer :: tmp
     integer :: lb, rb
-    !
+
     ! The points known to be <= alpha are in
     ! [l,lb-1]
     !
@@ -368,8 +357,7 @@ contains
     ! Therefore we add new points into lb or
     ! rb as appropriate.  When lb=rb
     ! we are done.  We return the location of the last point <= alpha.
-    !
-    !
+
     lb = li
     rb = ui
 
