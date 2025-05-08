@@ -546,7 +546,7 @@ contains
     type(kdtree2), intent(in) :: tp
     real(kdkind), intent(In)    :: qv(:)
     integer, intent(In)         :: nn
-    type(kdtree2_result), intent(inout) :: results(nn)
+    type(kdtree2_result), intent(inout), target :: results(nn)
     type(tree_search_record) :: sr
 
     sr%ballsize = huge(1.0)
@@ -573,7 +573,7 @@ contains
     ! results(:), which must be pre-allocated upon entry.
     type(kdtree2), intent(in) :: tp
     integer, intent(In)           :: idxin, correltime, nn
-    type(kdtree2_result) :: results(nn)
+    type(kdtree2_result), intent(inout), target :: results(nn)
     type(tree_search_record) :: sr
 
     allocate (sr%qv(tp%dimen))
@@ -611,7 +611,7 @@ contains
     real(kdkind), intent(in)             :: r2
     integer, intent(out)         :: nfound
     integer, intent(In)         :: nalloc
-    type(kdtree2_result) :: results(nalloc)
+    type(kdtree2_result), intent(inout), target :: results(nalloc)
     type(tree_search_record) :: sr
 
     !
@@ -650,7 +650,7 @@ contains
     integer, intent(In)         :: idxin, correltime, nalloc
     real(kdkind), intent(in)             :: r2
     integer, intent(out)         :: nfound
-    type(kdtree2_result) :: results(nalloc)
+    type(kdtree2_result), intent(inout), target :: results(nalloc)
     type(tree_search_record) :: sr
     ! ..
     ! .. Intrinsic Functions ..
