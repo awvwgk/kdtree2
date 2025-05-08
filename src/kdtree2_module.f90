@@ -1058,75 +1058,6 @@ contains
     res%heap_size = 0
   end function pq_create
 
-  ! Take a heap rooted at 'i' and force it to be in the
-  ! heap canonical form.   This is performance critical
-  ! and has been tweaked a little to reflect this.
-  subroutine heapify(a, i_in)
-    type(pq), intent(inout) :: a
-    integer, intent(in)     :: i_in
-    integer                 :: i, l, r, largest
-    real(kdkind)            :: pri_i, pri_l, pri_r, pri_largest
-    type(kdtree2_result)    :: temp
-
-    i = i_in
-
-    bigloop: do
-      l = 2*i ! left(i)
-      r = l + 1 ! right(i)
-      !
-      ! set 'largest' to the index of either i, l, r
-      ! depending on whose priority is largest.
-      !
-      ! note that l or r can be larger than the heap size
-      ! in which case they do not count.
-
-      ! does left child have higher priority?
-      if (l .gt. a%heap_size) then
-        ! we know that i is the largest as both l and r are invalid.
-        exit
-      else
-        pri_i = a%elems(i)%dis
-        pri_l = a%elems(l)%dis
-        if (pri_l .gt. pri_i) then
-          largest = l
-          pri_largest = pri_l
-        else
-          largest = i
-          pri_largest = pri_i
-        end if
-
-        !
-        ! between i and l we have a winner
-        ! now choose between that and r.
-        !
-        if (r .le. a%heap_size) then
-          pri_r = a%elems(r)%dis
-          if (pri_r .gt. pri_largest) then
-            largest = r
-          end if
-        end if
-      end if
-
-      if (largest .ne. i) then
-        ! swap data in nodes largest and i, then heapify
-
-        temp = a%elems(i)
-        a%elems(i) = a%elems(largest)
-        a%elems(largest) = temp
-        !
-        ! Canonical heapify() algorithm has tail-ecursive call:
-        !
-        !        call heapify(a,largest)
-        ! we will simulate with cycle
-        !
-        i = largest
-        cycle bigloop ! continue the loop
-      else
-        return   ! break from the loop
-      end if
-    end do bigloop
-  end subroutine heapify
-
   real(kdkind) function pq_maxpri(a)
     type(pq), intent(in) :: a
 
@@ -1137,27 +1068,6 @@ contains
       stop
     end if
   end function pq_maxpri
-
-  ! return the priority and payload of maximum priority element, and remove it
-  ! from the queue. (equivalent to 'pop()' on a stack)
-  subroutine pq_extract_max(a, e)
-    type(pq), intent(inout)           :: a
-    type(kdtree2_result), intent(out) :: e
-
-    if (a%heap_size .ge. 1) then
-      ! return max as first element
-      e = a%elems(1)
-
-      ! move last element to first
-      a%elems(1) = a%elems(a%heap_size)
-      a%heap_size = a%heap_size - 1
-      call heapify(a, 1)
-    else
-      write (*, *) 'PQ_EXTRACT_MAX: error, attempted to pop non-positive PQ'
-      stop
-    end if
-
-  end subroutine pq_extract_max
 
   ! Insert a new element and return the new maximum priority, which may or may
   ! not be the same as the old maximum priority.
@@ -1201,58 +1111,48 @@ contains
     integer, intent(in)      :: idx
     integer                  :: parent, child, N
     real(kdkind)             :: prichild, prichildp1
-    type(kdtree2_result)     :: etmp
 
-    if (.true.) then
-      N = a%heap_size
-      if (N .ge. 1) then
-        parent = 1
-        child = 2
+    N = a%heap_size
+    if (N .ge. 1) then
+      parent = 1
+      child = 2
 
-        loop: do while (child .le. N)
-          prichild = a%elems(child)%dis
+      loop: do while (child .le. N)
+        prichild = a%elems(child)%dis
 
-          !
-          ! posibly child+1 has higher priority, and if
-          ! so, get it, and increment child.
-          !
+        !
+        ! posibly child+1 has higher priority, and if
+        ! so, get it, and increment child.
+        !
 
-          if (child .lt. N) then
-            prichildp1 = a%elems(child + 1)%dis
-            if (prichild .lt. prichildp1) then
-              child = child + 1
-              prichild = prichildp1
-            end if
+        if (child .lt. N) then
+          prichildp1 = a%elems(child + 1)%dis
+          if (prichild .lt. prichildp1) then
+            child = child + 1
+            prichild = prichildp1
           end if
+        end if
 
-          if (dis .ge. prichild) then
-            exit loop
-            ! we have a proper place for our new element,
-            ! bigger than either children's priority.
-          else
-            ! move child into parent.
-            a%elems(parent) = a%elems(child)
-            parent = child
-            child = 2*parent
-          end if
-        end do loop
-        a%elems(parent)%dis = dis
-        a%elems(parent)%idx = idx
-        pq_replace_max = a%elems(1)%dis
-      else
-        a%elems(1)%dis = dis
-        a%elems(1)%idx = idx
-        pq_replace_max = dis
-      end if
+        if (dis .ge. prichild) then
+          exit loop
+          ! we have a proper place for our new element,
+          ! bigger than either children's priority.
+        else
+          ! move child into parent.
+          a%elems(parent) = a%elems(child)
+          parent = child
+          child = 2*parent
+        end if
+      end do loop
+      a%elems(parent)%dis = dis
+      a%elems(parent)%idx = idx
+      pq_replace_max = a%elems(1)%dis
     else
-      !
-      ! slower version using elementary pop and push operations.
-      !
-      call pq_extract_max(a, etmp)
-      etmp%dis = dis
-      etmp%idx = idx
-      pq_replace_max = pq_insert(a, dis, idx)
+      a%elems(1)%dis = dis
+      a%elems(1)%idx = idx
+      pq_replace_max = dis
     end if
+
   end function pq_replace_max
 
 end module kdtree2_module
