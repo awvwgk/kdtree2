@@ -991,34 +991,6 @@ contains
     end if
   end function dis2_from_bnd
 
-  pure logical function box_in_search_range(node, sr) result(res)
-    !
-    ! Return the distance from 'qv' to the CLOSEST corner of node's
-    ! bounding box
-    ! for all coordinates outside the box.   Coordinates inside the box
-    ! contribute nothing to the distance.
-    !
-    type(tree_node), intent(in) :: node
-    type(tree_search_record), intent(in) :: sr
-
-    integer ::  i
-    real(kdkind) :: dis, l, u
-
-    associate(dimen => sr%dimen, ballsize => sr%ballsize)
-      dis = 0.0_kdkind
-      res = .true.
-      do i = 1, dimen
-        l = node%box(i)%lower
-        u = node%box(i)%upper
-        dis = dis + dis2_from_bnd(sr%qv(i), l, u)
-        if (dis > ballsize) then
-          res = .false.
-          return
-        end if
-      end do
-    end associate
-  end function box_in_search_range
-
   subroutine process_terminal_node(sr, node)
     !
     ! Look for actual near neighbors in 'node', and update
@@ -1258,58 +1230,6 @@ contains
 
     return
   end subroutine kdtree2_sort_results
-
-  subroutine heapsort(a, ind, n)
-    !
-    ! Sort a(1:n) in ascending order, permuting ind(1:n) similarly.
-    !
-    ! If ind(k) = k upon input, then it will give a sort index upon output.
-    !
-    integer, intent(in) :: n
-    real(kdkind), intent(inout) :: a(:)
-    integer, intent(inout) :: ind(:)
-
-    real(kdkind) :: value   ! temporary for a value from a()
-    integer :: ivalue  ! temporary for a value from ind()
-
-    integer :: i, j
-    integer :: ileft, iright
-
-    ileft = n/2 + 1
-    iright = n
-
-    if (n .eq. 1) return
-
-    do
-      if (ileft > 1) then
-        ileft = ileft - 1
-        value = a(ileft); ivalue = ind(ileft)
-      else
-        value = a(iright); ivalue = ind(iright)
-        a(iright) = a(1); ind(iright) = ind(1)
-        iright = iright - 1
-        if (iright == 1) then
-          a(1) = value; ind(1) = ivalue
-          return
-        end if
-      end if
-      i = ileft
-      j = 2*ileft
-      do while (j <= iright)
-        if (j < iright) then
-          if (a(j) < a(j + 1)) j = j + 1
-        end if
-        if (value < a(j)) then
-          a(i) = a(j); ind(i) = ind(j)
-          i = j
-          j = j + j
-        else
-          j = iright + 1
-        end if
-      end do
-      a(i) = value; ind(i) = ivalue
-    end do
-  end subroutine heapsort
 
   subroutine heapsort_struct(a, n)
     !
