@@ -120,7 +120,6 @@ module kdtree2_module
     real(kdkind)      :: ballsize
     integer           :: centeridx = 999, correltime = 9999
     ! exclude points within 'correltime' of 'centeridx', iff centeridx >= 0
-    integer           :: nalloc  ! how much allocated for results(:)?
     ! did the # of points found overflow the storage provided?
     logical           :: overflow
     real(kdkind), allocatable :: qv(:)  ! query vector
@@ -557,8 +556,6 @@ contains
     sr%centeridx = -1
     sr%correltime = 0
     sr%overflow = .false.
-
-    sr%nalloc = nn   ! will be checked
     sr%pq = pq_create(results)
 
     call search(tp, sr, tp%root, nn, results)
@@ -587,8 +584,6 @@ contains
 
     sr%nn = nn
     sr%nfound = 0
-
-    sr%nalloc = nn
     sr%pq = pq_create(results)
 
     call search(tp, sr, tp%root, nn, results)
@@ -626,8 +621,6 @@ contains
     sr%nfound = 0
     sr%centeridx = -1
     sr%correltime = 0
-
-    sr%nalloc = nalloc
     sr%overflow = .false.
 
     call search(tp, sr, tp%root, nalloc, results)
@@ -670,8 +663,6 @@ contains
     sr%nfound = 0
     sr%centeridx = idxin
     sr%correltime = correltime
-
-    sr%nalloc = nalloc
     sr%overflow = .false.
 
     call search(tp, sr, tp%root, nalloc, results)
@@ -709,9 +700,6 @@ contains
     sr%nfound = 0
     sr%centeridx = -1
     sr%correltime = 0
-
-    sr%nalloc = 0            ! we do not allocate any storage but that's OK
-    ! for counting.
     sr%overflow = .false.
 
     call search(tp, sr, tp%root, 0, dummy_results)
@@ -745,9 +733,6 @@ contains
     sr%nfound = 0
     sr%centeridx = idxin
     sr%correltime = correltime
-
-    sr%nalloc = 0            ! we do not allocate any storage but that's OK
-    ! for counting.
     sr%overflow = .false.
 
     call search(tp, sr, tp%root, 0, dummy_results)
@@ -1000,7 +985,7 @@ contains
       end if
 
       nfound = nfound + 1
-      if (nfound .gt. sr%nalloc) then
+      if (nfound .gt. n_max) then
         ! oh nuts, we have to add another one to the tree but
         ! there isn't enough room.
         sr%overflow = .true.
