@@ -175,10 +175,6 @@ Program kd_tree_test
 
   Enddo
   
-
-10 format('R^2 search, r2/d=',G10.2,':',F13.0,A)
-
-
 20 format(A,' NN=',I7,':',F10.0,' searches/s in ',A)
 
   do k=1,nnn
