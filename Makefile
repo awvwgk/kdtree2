@@ -60,10 +60,3 @@ $(TEST_DIR)/%: $(TEST_DIR)/%.f90
 
 # Dependencies
 $(TESTS): $(LIB)
-
-$(BUILD_DIR)/kdtree2_module.o :  \
-	$(BUILD_DIR)/kdtree2_precision_module.o \
-	$(BUILD_DIR)/kdtree2_priority_queue_module.o
-
-$(BUILD_DIR)/kdtree2_priority_queue_module.o :  \
-	$(BUILD_DIR)/kdtree2_precision_module.o

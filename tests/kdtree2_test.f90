@@ -5,7 +5,6 @@
 ! 
 
 module time_kdtree
-  use kdtree2_precision_module
   use kdtree2_module
 contains
 
