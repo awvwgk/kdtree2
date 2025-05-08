@@ -123,7 +123,7 @@ module kdtree2_module
     logical           :: rearrange  ! are the data rearranged or original?
     ! did the # of points found overflow the storage provided?
     logical           :: overflow
-    real(kdkind), pointer :: qv(:)  ! query vector
+    real(kdkind), allocatable :: qv(:)  ! query vector
     type(kdtree2_result), pointer :: results(:) ! results
     type(pq) :: pq
     real(kdkind), pointer :: data(:, :)  ! temp pointer to data
@@ -560,13 +560,13 @@ contains
     ! returning their indexes and distances in 'indexes' and 'distances'
     ! arrays already allocated passed to this subroutine.
     type(kdtree2), pointer      :: tp
-    real(kdkind), target, intent(In)    :: qv(:)
+    real(kdkind), intent(In)    :: qv(:)
     integer, intent(In)         :: nn
     type(kdtree2_result), target :: results(:)
     type(tree_search_record) :: sr
 
     sr%ballsize = huge(1.0)
-    sr%qv => qv
+    sr%qv = qv
     sr%nn = nn
     sr%nfound = 0
     sr%centeridx = -1
@@ -662,7 +662,7 @@ contains
     type(tree_search_record) :: sr
 
     !
-    sr%qv => qv
+    sr%qv = qv
     sr%ballsize = r2
     sr%nn = 0      ! flag for fixed ball search
     sr%nfound = 0
@@ -783,7 +783,7 @@ contains
     ! .. Intrinsic Functions ..
     intrinsic HUGE
     ! ..
-    sr%qv => qv
+    sr%qv = qv
     sr%ballsize = r2
 
     sr%nn = 0       ! flag for fixed r search
@@ -1027,55 +1027,28 @@ contains
     type(tree_search_record), intent(inout), target :: sr
     type(tree_node), pointer          :: node
     !
-    real(kdkind), pointer          :: qv(:)
-    integer, pointer       :: ind(:)
-    real(kdkind), pointer          :: data(:, :)
-    !
-    integer                :: dimen, i, indexofi, k, centeridx, correltime
-    real(kdkind)                   :: ballsize, sd, newpri
-    logical                :: rearrange
-    type(pq), pointer      :: pqp
-
-    !
-    ! copy values from sr to local variables
-    !
-    !
-    ! Notice, making local pointers with an EXPLICIT lower bound
-    ! seems to generate faster code.
-    ! why?  I don't know.
-    qv => sr%qv(1:)
-    pqp => sr%pq
-    dimen = sr%dimen
-    ballsize = sr%ballsize
-    rearrange = sr%rearrange
-    ind => sr%ind(1:)
-    data => sr%Data(1:, 1:)
-    centeridx = sr%centeridx
-    correltime = sr%correltime
-
-    !    doing_correl = (centeridx >= 0)  ! Do we have a decorrelation window?
-    !    include_point = .true.    ! by default include all points
-    ! search through terminal bucket.
+    integer                :: i, indexofi, k
+    real(kdkind)                   :: sd, newpri
 
     mainloop: do i = node%l, node%u
-      if (rearrange) then
+      if (sr%rearrange) then
         sd = 0.0
-        do k = 1, dimen
-          sd = sd + (data(k, i) - qv(k))**2
-          if (sd > ballsize) cycle mainloop
+        do k = 1, sr%dimen
+          sd = sd + (sr%data(k, i) - sr%qv(k))**2
+          if (sd > sr%ballsize) cycle mainloop
         end do
-        indexofi = ind(i)  ! only read it if we have not broken out
+        indexofi = sr%ind(i)  ! only read it if we have not broken out
       else
-        indexofi = ind(i)
+        indexofi = sr%ind(i)
         sd = 0.0
-        do k = 1, dimen
-          sd = sd + (data(k, indexofi) - qv(k))**2
-          if (sd > ballsize) cycle mainloop
+        do k = 1, sr%dimen
+          sd = sd + (sr%data(k, indexofi) - sr%qv(k))**2
+          if (sd > sr%ballsize) cycle mainloop
         end do
       end if
 
-      if (centeridx > 0) then ! doing correlation interval?
-        if (abs(indexofi - centeridx) < correltime) cycle mainloop
+      if (sr%centeridx > 0) then ! doing correlation interval?
+        if (abs(indexofi - sr%centeridx) < sr%correltime) cycle mainloop
       end if
 
       !
@@ -1101,8 +1074,8 @@ contains
         ! add this point unconditionally to fill list.
         !
         sr%nfound = sr%nfound + 1
-        newpri = pq_insert(pqp, sd, indexofi)
-        if (sr%nfound .eq. sr%nn) ballsize = newpri
+        newpri = pq_insert(sr%pq, sd, indexofi)
+        if (sr%nfound .eq. sr%nn) sr%ballsize = newpri
         ! we have just filled the working list.
         ! put the best square distance to the maximum value
         ! on the list, which is extractable from the PQ.
@@ -1115,13 +1088,9 @@ contains
         ! belongs on the list.
         ! Hence we replace that with the current one.
         !
-        ballsize = pq_replace_max(pqp, sd, indexofi)
+        sr%ballsize = pq_replace_max(sr%pq, sd, indexofi)
       end if
     end do mainloop
-    !
-    ! Reset sr variables which may have changed during loop
-    !
-    sr%ballsize = ballsize
 
   end subroutine process_terminal_node
 
@@ -1134,29 +1103,9 @@ contains
     type(tree_search_record), intent(inout) :: sr
     type(tree_node), pointer          :: node
     !
-    real(kdkind), pointer          :: qv(:)
-    integer, pointer       :: ind(:)
-    real(kdkind), pointer          :: data(:, :)
-    !
     integer                :: nfound
-    integer                :: dimen, i, indexofi, k
-    integer                :: centeridx, correltime, nn
-    real(kdkind)                   :: ballsize, sd
-    logical                :: rearrange
-
-    !
-    ! copy values from sr to local variables
-    !
-    qv => sr%qv(1:)
-    dimen = sr%dimen
-    ballsize = sr%ballsize
-    rearrange = sr%rearrange
-    ind => sr%ind(1:)
-    data => sr%Data(1:, 1:)
-    centeridx = sr%centeridx
-    correltime = sr%correltime
-    nn = sr%nn ! number to search for
-    nfound = sr%nfound
+    integer                :: i, indexofi, k
+    real(kdkind)           :: sd
 
     ! search through terminal bucket.
     mainloop: do i = node%l, node%u
@@ -1181,24 +1130,24 @@ contains
 
       ! which index to the point do we use?
 
-      if (rearrange) then
+      if (sr%rearrange) then
         sd = 0.0
-        do k = 1, dimen
-          sd = sd + (data(k, i) - qv(k))**2
-          if (sd > ballsize) cycle mainloop
+        do k = 1, sr%dimen
+          sd = sd + (sr%data(k, i) - sr%qv(k))**2
+          if (sd > sr%ballsize) cycle mainloop
         end do
-        indexofi = ind(i)  ! only read it if we have not broken out
+        indexofi = sr%ind(i)  ! only read it if we have not broken out
       else
-        indexofi = ind(i)
+        indexofi = sr%ind(i)
         sd = 0.0
-        do k = 1, dimen
-          sd = sd + (data(k, indexofi) - qv(k))**2
-          if (sd > ballsize) cycle mainloop
+        do k = 1, sr%dimen
+          sd = sd + (sr%data(k, indexofi) - sr%qv(k))**2
+          if (sd > sr%ballsize) cycle mainloop
         end do
       end if
 
-      if (centeridx > 0) then ! doing correlation interval?
-        if (abs(indexofi - centeridx) < correltime) cycle mainloop
+      if (sr%centeridx > 0) then ! doing correlation interval?
+        if (abs(indexofi - sr%centeridx) < sr%correltime) cycle mainloop
       end if
 
       nfound = nfound + 1
