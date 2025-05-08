@@ -8,10 +8,22 @@ program kdtree_benchmark
 
   real :: t0, t1, t2
   integer, parameter :: m(3) = [3, 8, 16]
-  integer, parameter :: n = 10000, r = 1000
-  integer :: idxs(r), idx
+  integer :: n = 10000, r = 1000
+  integer :: idx
   integer :: i, s
-  integer, allocatable :: seed(:)
+  integer, allocatable :: seed(:), idxs(:)
+  character(len=80) :: arg_str
+
+  if (command_argument_count() == 2) then
+     call get_command_argument(1, arg_str)
+     read(arg_str, *) n
+     call get_command_argument(2, arg_str)
+     read(arg_str, *) r
+  end if
+
+  write(*, "(A,I0,A,I0)") " Using n_points = ", n, ", n_samples = ", r
+
+  allocate(idxs(r))
 
   call random_seed(size=s)
   allocate(seed(s))
