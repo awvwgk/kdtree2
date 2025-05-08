@@ -116,10 +116,10 @@ module kdtree2_module
      ! dimensionality and total # of points
     integer :: dimen = 0, n = 0
 
-    ! pointer to the actual data array
-    real(kdkind), pointer :: the_data(:, :) => null()
+    ! Copy of the input data
+    real(kdkind), allocatable :: input_data(:, :)
 
-    !  IMPORTANT NOTE:  IT IS DIMENSIONED   the_data(1:d,1:N)
+    !  IMPORTANT NOTE:  IT IS DIMENSIONED   input_data(1:d,1:N)
     !  which may be opposite of what may be conventional.
     !  This is, because in Fortran, the memory layout is such that
     !  the first dimension is in sequential order.  Hence, with
@@ -138,15 +138,11 @@ module kdtree2_module
     ! do we always sort output results?
     logical       :: sort = .false.
 
-    ! if (rearrange .eqv. .true.) then rearranged_data has been
-    ! created so that rearranged_data(:,i) = the_data(:,ind(i)),
-    ! permitting search to use more cache-friendly rearranged_data, at
-    ! some initial computation and storage cost.
+    ! if (rearrange .eqv. .true.) then rearranged data has been stored
     logical       :: rearrange = .false.
-    real(kdkind), pointer :: rearranged_data(:, :) => null()
 
-    ! Points to the_data or rearranged_data, depending on the rearrange flag
-    real(kdkind), pointer :: data_ptr(:, :) => null()
+    ! Rearranged input data
+    real(kdkind), allocatable :: rearranged_data(:, :)
 
     ! Root pointer of the tree
     type(tree_node), pointer :: root => null()
@@ -198,10 +194,8 @@ contains
     integer, intent(in), optional :: dim
     logical, intent(in), optional :: sort
     logical, intent(in), optional :: rearrange
-    real(kdkind), target          :: input_data(:, :)
+    real(kdkind)                  :: input_data(:, :)
     integer                       :: i
-
-    mr%the_data => input_data
 
     if (present(dim)) then
       mr%dimen = dim
@@ -209,6 +203,9 @@ contains
       mr%dimen = size(input_data, 1)
     end if
     mr%n = size(input_data, 2)
+
+    allocate(mr%input_data(mr%dimen, mr%n))
+    mr%input_data(:, :) = input_data(1:mr%dimen, :)
 
     if (mr%dimen > mr%n) then
       write (*, *) 'KD_TREE_TRANS: likely user error.'
@@ -235,14 +232,10 @@ contains
     end if
 
     if (mr%rearrange) then
-      allocate (mr%rearranged_data(mr%dimen, mr%n))
+      allocate(mr%rearranged_data(mr%dimen, mr%n))
       do i = 1, mr%n
-        mr%rearranged_data(:, i) = mr%the_data(:, mr%ind(i))
+        mr%rearranged_data(:, i) = input_data(1:mr%dimen, mr%ind(i))
       end do
-      mr%data_ptr => mr%rearranged_data
-    else
-      nullify (mr%rearranged_data)
-      mr%data_ptr => mr%the_data
     end if
 
   end function kdtree2_create
@@ -324,20 +317,20 @@ contains
       if (.false.) then
         ! select exact median to have fully balanced tree.
         m = (l + u)/2
-        call select_on_coordinate(tp%the_data, tp%ind, c, m, l, u)
+        call select_on_coordinate(tp%input_data, tp%ind, c, m, l, u)
       else
         ! select point halfway between min and max, as per A. Moore,
         ! who says this helps in some degenerate cases, or
         ! actual arithmetic average.
         if (.true.) then
           ! actually compute average
-          average = sum(tp%the_data(c, tp%ind(l:u)))/real(u - l + 1, kdkind)
+          average = sum(tp%input_data(c, tp%ind(l:u)))/real(u - l + 1, kdkind)
         else
           average = (res%box(c)%upper + res%box(c)%lower)/2.0
         end if
 
         res%cut_val = average
-        m = select_on_coordinate_value(tp%the_data, tp%ind, c, average, l, u)
+        m = select_on_coordinate_value(tp%input_data, tp%ind, c, average, l, u)
       end if
 
       ! moves indexes around
@@ -468,14 +461,14 @@ contains
     real(kdkind)                :: last, lmax, lmin, t, smin, smax
     integer                     :: i, ulocal
 
-    smin = tp%the_data(c, tp%ind(l))
+    smin = tp%input_data(c, tp%ind(l))
     smax = smin
 
     ulocal = u
 
     do i = l + 2, ulocal, 2
-      lmin = tp%the_data(c, tp%ind(i - 1))
-      lmax = tp%the_data(c, tp%ind(i))
+      lmin = tp%input_data(c, tp%ind(i - 1))
+      lmax = tp%input_data(c, tp%ind(i))
       if (lmin > lmax) then
         t = lmin
         lmin = lmax
@@ -485,7 +478,7 @@ contains
       if (smax < lmax) smax = lmax
     end do
     if (i == ulocal + 1) then
-      last = tp%the_data(c, tp%ind(ulocal))
+      last = tp%input_data(c, tp%ind(ulocal))
       if (smin > last) smin = last
       if (smax < last) smax = last
     end if
@@ -502,11 +495,6 @@ contains
     call destroy_node(tp%root)
 
     deallocate (tp%ind)
-
-    if (tp%rearrange) then
-      deallocate (tp%rearranged_data)
-      nullify (tp%rearranged_data)
-    end if
 
   contains
 
@@ -560,7 +548,7 @@ contains
     type(tree_search_record)                    :: sr
 
     allocate (sr%qv(tp%dimen))
-    sr%qv = tp%the_data(:, idxin) ! copy the vector
+    sr%qv = tp%input_data(:, idxin) ! copy the vector
     sr%ballsize = huge(1.0)       ! the largest real(kdkind) number
     sr%centeridx = idxin
     sr%correltime = correltime
@@ -625,7 +613,7 @@ contains
     type(tree_search_record)                    :: sr
 
     allocate (sr%qv(tp%dimen))
-    sr%qv = tp%the_data(:, idxin) ! copy the vector
+    sr%qv = tp%input_data(:, idxin) ! copy the vector
     sr%ballsize = r2
     sr%nn = 0    ! flag for fixed r search
     sr%nfound = 0
@@ -679,7 +667,7 @@ contains
     type(kdtree2_result)      :: dummy_results(0)
 
     allocate (sr%qv(tp%dimen))
-    sr%qv = tp%the_data(:, idxin)
+    sr%qv = tp%input_data(:, idxin)
     sr%ballsize = r2
     sr%nn = 0       ! flag for fixed r search
     sr%nfound = 0
@@ -799,7 +787,7 @@ contains
       if (tp%rearrange) then
         sd = 0.0
         do k = 1, tp%dimen
-          sd = sd + (tp%data_ptr(k, i) - sr%qv(k))**2
+          sd = sd + (tp%rearranged_data(k, i) - sr%qv(k))**2
           if (sd > sr%ballsize) cycle mainloop
         end do
         indexofi = tp%ind(i)  ! only read it if we have not broken out
@@ -807,7 +795,7 @@ contains
         indexofi = tp%ind(i)
         sd = 0.0
         do k = 1, tp%dimen
-          sd = sd + (tp%data_ptr(k, indexofi) - sr%qv(k))**2
+          sd = sd + (tp%input_data(k, indexofi) - sr%qv(k))**2
           if (sd > sr%ballsize) cycle mainloop
         end do
       end if
@@ -897,7 +885,7 @@ contains
       if (tp%rearrange) then
         sd = 0.0
         do k = 1, tp%dimen
-          sd = sd + (tp%data_ptr(k, i) - sr%qv(k))**2
+          sd = sd + (tp%rearranged_data(k, i) - sr%qv(k))**2
           if (sd > sr%ballsize) cycle mainloop
         end do
         indexofi = tp%ind(i)  ! only read it if we have not broken out
@@ -905,7 +893,7 @@ contains
         indexofi = tp%ind(i)
         sd = 0.0
         do k = 1, tp%dimen
-          sd = sd + (tp%data_ptr(k, indexofi) - sr%qv(k))**2
+          sd = sd + (tp%input_data(k, indexofi) - sr%qv(k))**2
           if (sd > sr%ballsize) cycle mainloop
         end do
       end if
@@ -940,7 +928,7 @@ contains
 
     allocate (all_distances(tp%n))
     do i = 1, tp%n
-      all_distances(i) = square_distance(tp%dimen, qv, tp%the_data(:, i))
+      all_distances(i) = square_distance(tp%dimen, qv, tp%input_data(:, i))
     end do
     ! now find 'n' smallest distances
     do i = 1, nn
@@ -978,7 +966,7 @@ contains
 
     allocate (all_distances(tp%n))
     do i = 1, tp%n
-      all_distances(i) = square_distance(tp%dimen, qv, tp%the_data(:, i))
+      all_distances(i) = square_distance(tp%dimen, qv, tp%input_data(:, i))
     end do
 
     nfound = 0
