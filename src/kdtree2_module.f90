@@ -89,7 +89,7 @@ module kdtree2_module
     !  memory cache locality, and hence search speed, and may enable
     !  vectorization on some processors and compilers.
 
-    integer, pointer :: ind(:) => null()
+    integer, allocatable :: ind(:)
     ! permuted index into the data, so that indexes[l..u] of some
     ! bucket represent the indexes of the actual points in that
     ! bucket.
@@ -101,6 +101,8 @@ module kdtree2_module
     ! created so that rearranged_data(:,i) = the_data(:,ind(i)),
     ! permitting search to use more cache-friendly rearranged_data, at
     ! some initial computation and storage cost.
+    real(kdkind), pointer :: data_ptr(:, :) => null()
+    ! Points to the_data or rearranged_data, depending on the rearrange flag
     type(tree_node), pointer :: root => null()
     ! root pointer of the tree
   end type kdtree2
@@ -114,20 +116,16 @@ module kdtree2_module
     ! Many fields are copied from the tree structure, in order to
     ! speed up the search.
     !
-    integer           :: dimen
     integer           :: nn, nfound
     real(kdkind)      :: ballsize
     integer           :: centeridx = 999, correltime = 9999
     ! exclude points within 'correltime' of 'centeridx', iff centeridx >= 0
     integer           :: nalloc  ! how much allocated for results(:)?
-    logical           :: rearrange  ! are the data rearranged or original?
     ! did the # of points found overflow the storage provided?
     logical           :: overflow
     real(kdkind), allocatable :: qv(:)  ! query vector
     type(kdtree2_result), pointer :: results(:) ! results
     type(pq) :: pq
-    real(kdkind), pointer :: data(:, :)  ! temp pointer to data
-    integer, pointer      :: ind(:)     ! temp pointer to indexes
   end type tree_search_record
 
 contains
@@ -189,16 +187,12 @@ contains
 
     call build_tree(mr)
 
-    ! TODO: use optval from stdlib
-    ! mr%sort = optval(sort,.false.)
     if (present(sort)) then
       mr%sort = sort
     else
       mr%sort = .false.
     end if
 
-    ! TODO: use optval from stdlib
-    ! mr%rearrange = optval(rearrange,.true.)
     if (present(rearrange)) then
       mr%rearrange = rearrange
     else
@@ -208,11 +202,12 @@ contains
     if (mr%rearrange) then
       allocate (mr%rearranged_data(mr%dimen, mr%n))
       do i = 1, mr%n
-        mr%rearranged_data(:, i) = mr%the_data(:, &
-                                               mr%ind(i))
+        mr%rearranged_data(:, i) = mr%the_data(:, mr%ind(i))
       end do
+      mr%data_ptr => mr%rearranged_data
     else
       nullify (mr%rearranged_data)
+      mr%data_ptr => mr%the_data
     end if
 
   end function kdtree2_create
@@ -479,20 +474,14 @@ contains
     real(kdkind) :: last, lmax, lmin, t, smin, smax
     integer :: i, ulocal
     ! ..
-    ! .. Local Arrays ..
-    real(kdkind), pointer :: v(:, :)
-    integer, pointer :: ind(:)
-    ! ..
-    v => tp%the_data(1:, 1:)
-    ind => tp%ind(1:)
-    smin = v(c, ind(l))
+    smin = tp%the_data(c, tp%ind(l))
     smax = smin
 
     ulocal = u
 
     do i = l + 2, ulocal, 2
-      lmin = v(c, ind(i - 1))
-      lmax = v(c, ind(i))
+      lmin = tp%the_data(c, tp%ind(i - 1))
+      lmax = tp%the_data(c, tp%ind(i))
       if (lmin > lmax) then
         t = lmin
         lmin = lmax
@@ -502,7 +491,7 @@ contains
       if (smax < lmax) smax = lmax
     end do
     if (i == ulocal + 1) then
-      last = v(c, ind(ulocal))
+      last = tp%the_data(c, tp%ind(ulocal))
       if (smin > last) smin = last
       if (smax < last) smax = last
     end if
@@ -520,7 +509,6 @@ contains
     call destroy_node(tp%root)
 
     deallocate (tp%ind)
-    nullify (tp%ind)
 
     if (tp%rearrange) then
       deallocate (tp%rearranged_data)
@@ -575,19 +563,11 @@ contains
 
     sr%nalloc = nn   ! will be checked
 
-    sr%ind => tp%ind
-    sr%rearrange = tp%rearrange
-    if (tp%rearrange) then
-      sr%Data => tp%rearranged_data
-    else
-      sr%Data => tp%the_data
-    end if
-    sr%dimen = tp%dimen
 
     call validate_query_storage(sr, nn)
     sr%pq = pq_create(results)
 
-    call search(sr, tp%root)
+    call search(tp, sr, tp%root)
 
     if (tp%sort) then
       call kdtree2_sort_results(nn, results)
@@ -614,24 +594,14 @@ contains
     sr%nn = nn
     sr%nfound = 0
 
-    sr%dimen = tp%dimen
     sr%nalloc = nn
 
     sr%results => results
 
-    sr%ind => tp%ind
-    sr%rearrange = tp%rearrange
-
-    if (sr%rearrange) then
-      sr%Data => tp%rearranged_data
-    else
-      sr%Data => tp%the_data
-    end if
-
     call validate_query_storage(sr, nn)
     sr%pq = pq_create(results)
 
-    call search(sr, tp%root)
+    call search(tp, sr, tp%root)
 
     if (tp%sort) then
       call kdtree2_sort_results(nn, results)
@@ -672,22 +642,8 @@ contains
     call validate_query_storage(sr, nalloc)
     sr%nalloc = nalloc
     sr%overflow = .false.
-    sr%ind => tp%ind
-    sr%rearrange = tp%rearrange
 
-    if (tp%rearrange) then
-      sr%Data => tp%rearranged_data
-    else
-      sr%Data => tp%the_data
-    end if
-    sr%dimen = tp%dimen
-
-    !
-    !sr%dsl = Huge(sr%dsl)    ! set to huge positive values
-    !sr%il = -1               ! set to invalid indexes
-    !
-
-    call search(sr, tp%root)
+    call search(tp, sr, tp%root)
     nfound = sr%nfound
     if (tp%sort) then
       call kdtree2_sort_results(nfound, results)
@@ -735,26 +691,7 @@ contains
 
     call validate_query_storage(sr, nalloc)
 
-    !    sr%dsl = HUGE(sr%dsl)    ! set to huge positive values
-    !    sr%il = -1               ! set to invalid indexes
-
-    sr%ind => tp%ind
-    sr%rearrange = tp%rearrange
-
-    if (tp%rearrange) then
-      sr%Data => tp%rearranged_data
-    else
-      sr%Data => tp%the_data
-    end if
-    sr%rearrange = tp%rearrange
-    sr%dimen = tp%dimen
-
-    !
-    !sr%dsl = Huge(sr%dsl)    ! set to huge positive values
-    !sr%il = -1               ! set to invalid indexes
-    !
-
-    call search(sr, tp%root)
+    call search(tp, sr, tp%root)
     nfound = sr%nfound
     if (tp%sort) then
       call kdtree2_sort_results(nfound, results)
@@ -793,22 +730,9 @@ contains
 
     sr%nalloc = 0            ! we do not allocate any storage but that's OK
     ! for counting.
-    sr%ind => tp%ind
-    sr%rearrange = tp%rearrange
-    if (tp%rearrange) then
-      sr%Data => tp%rearranged_data
-    else
-      sr%Data => tp%the_data
-    end if
-    sr%dimen = tp%dimen
-
-    !
-    !sr%dsl = Huge(sr%dsl)    ! set to huge positive values
-    !sr%il = -1               ! set to invalid indexes
-    !
     sr%overflow = .false.
 
-    call search(sr, tp%root)
+    call search(tp, sr, tp%root)
 
     nfound = sr%nfound
 
@@ -842,24 +766,9 @@ contains
 
     sr%nalloc = 0            ! we do not allocate any storage but that's OK
     ! for counting.
-
-    sr%ind => tp%ind
-    sr%rearrange = tp%rearrange
-
-    if (sr%rearrange) then
-      sr%Data => tp%rearranged_data
-    else
-      sr%Data => tp%the_data
-    end if
-    sr%dimen = tp%dimen
-
-    !
-    !sr%dsl = Huge(sr%dsl)    ! set to huge positive values
-    !sr%il = -1               ! set to invalid indexes
-    !
     sr%overflow = .false.
 
-    call search(sr, tp%root)
+    call search(tp, sr, tp%root)
 
     nfound = sr%nfound
 
@@ -897,7 +806,7 @@ contains
     res = sum((iv(1:d) - qv(1:d))**2)
   end function square_distance
 
-  recursive subroutine search(sr, node)
+  recursive subroutine search(tp, sr, node)
     !
     ! This is the innermost core routine of the kd-tree search.  Along
     ! with "process_terminal_node", it is the performance bottleneck.
@@ -905,6 +814,7 @@ contains
     ! This version uses a logically complete secondary search of
     ! "box in bounds", whether the sear
     !
+    type(kdtree2), intent(in) :: tp
     type(tree_search_record), intent(inout), target :: sr
     type(Tree_node), pointer          :: node
     ! ..
@@ -920,9 +830,9 @@ contains
     if ((associated(node%left) .and. associated(node%right)) .eqv. .false.) then
       ! we are on a terminal node
       if (sr%nn .eq. 0) then
-        call process_terminal_node_fixedball(sr, node)
+        call process_terminal_node_fixedball(tp, sr, node)
       else
-        call process_terminal_node(sr, node)
+        call process_terminal_node(tp, sr, node)
       end if
     else
       ! we are not on a terminal node
@@ -942,7 +852,7 @@ contains
 !          extra = qval- node%cut_val_left
       end if
 
-      if (associated(ncloser)) call search(sr, ncloser)
+      if (associated(ncloser)) call search(tp, sr, ncloser)
 
       ! we may need to search the second node.
       if (associated(nfarther)) then
@@ -956,7 +866,7 @@ contains
           ! check will also be false.
           !
           box => node%box(1:)
-          do i = 1, sr%dimen
+          do i = 1, tp%dimen
             if (i .ne. cut_dim) then
               dis = dis + dis2_from_bnd(qv(i), box(i)%lower, box(i)%upper)
               if (dis > ballsize) then
@@ -968,7 +878,7 @@ contains
           !
           ! if we are still here then we need to search mroe.
           !
-          call search(sr, nfarther)
+          call search(tp, sr, nfarther)
         end if
       end if
     end if
@@ -989,11 +899,12 @@ contains
     end if
   end function dis2_from_bnd
 
-  subroutine process_terminal_node(sr, node)
+  subroutine process_terminal_node(tp, sr, node)
     !
     ! Look for actual near neighbors in 'node', and update
     ! the search results on the sr data structure.
     !
+    type(kdtree2), intent(in) :: tp
     type(tree_search_record), intent(inout), target :: sr
     type(tree_node), pointer          :: node
     !
@@ -1001,18 +912,18 @@ contains
     real(kdkind)                   :: sd, newpri
 
     mainloop: do i = node%l, node%u
-      if (sr%rearrange) then
+      if (tp%rearrange) then
         sd = 0.0
-        do k = 1, sr%dimen
-          sd = sd + (sr%data(k, i) - sr%qv(k))**2
+        do k = 1, tp%dimen
+          sd = sd + (tp%data_ptr(k, i) - sr%qv(k))**2
           if (sd > sr%ballsize) cycle mainloop
         end do
-        indexofi = sr%ind(i)  ! only read it if we have not broken out
+        indexofi = tp%ind(i)  ! only read it if we have not broken out
       else
-        indexofi = sr%ind(i)
+        indexofi = tp%ind(i)
         sd = 0.0
-        do k = 1, sr%dimen
-          sd = sd + (sr%data(k, indexofi) - sr%qv(k))**2
+        do k = 1, tp%dimen
+          sd = sd + (tp%data_ptr(k, indexofi) - sr%qv(k))**2
           if (sd > sr%ballsize) cycle mainloop
         end do
       end if
@@ -1064,12 +975,13 @@ contains
 
   end subroutine process_terminal_node
 
-  subroutine process_terminal_node_fixedball(sr, node)
+  subroutine process_terminal_node_fixedball(tp, sr, node)
     !
     ! Look for actual near neighbors in 'node', and update
     ! the search results on the sr data structure, i.e.
     ! save all within a fixed ball.
     !
+    type(kdtree2), intent(in) :: tp
     type(tree_search_record), intent(inout) :: sr
     type(tree_node), pointer          :: node
     !
@@ -1100,18 +1012,18 @@ contains
 
       ! which index to the point do we use?
 
-      if (sr%rearrange) then
+      if (tp%rearrange) then
         sd = 0.0
-        do k = 1, sr%dimen
-          sd = sd + (sr%data(k, i) - sr%qv(k))**2
+        do k = 1, tp%dimen
+          sd = sd + (tp%data_ptr(k, i) - sr%qv(k))**2
           if (sd > sr%ballsize) cycle mainloop
         end do
-        indexofi = sr%ind(i)  ! only read it if we have not broken out
+        indexofi = tp%ind(i)  ! only read it if we have not broken out
       else
-        indexofi = sr%ind(i)
+        indexofi = tp%ind(i)
         sd = 0.0
-        do k = 1, sr%dimen
-          sd = sd + (sr%data(k, indexofi) - sr%qv(k))**2
+        do k = 1, tp%dimen
+          sd = sd + (tp%data_ptr(k, indexofi) - sr%qv(k))**2
           if (sd > sr%ballsize) cycle mainloop
         end do
       end if
