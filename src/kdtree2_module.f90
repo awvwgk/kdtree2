@@ -65,7 +65,7 @@ module kdtree2_module
     ! improved cutoffs knowing the spread in child boxes.
     integer :: l, u
     type(tree_node), pointer :: left, right
-    type(interval), pointer :: box(:) => null()
+    type(interval), allocatable :: box(:)
     ! child pointers
     ! Points included in this node are indexes[k] with k \in [l,u]
 
@@ -532,7 +532,7 @@ contains
         call destroy_node(np%right)
         nullify (np%right)
       end if
-      if (associated(np%box)) deallocate (np%box)
+      if (allocated(np%box)) deallocate (np%box)
       deallocate (np)
       return
 
@@ -792,7 +792,6 @@ contains
     ! ..
     real(kdkind)                               :: qval, dis
     real(kdkind)                               :: ballsize
-    type(interval), pointer :: box(:)
 
     if ((associated(node%left) .and. associated(node%right)) .eqv. .false.) then
       ! we are on a terminal node
@@ -832,10 +831,9 @@ contains
           ! note that if extra**2 < sr%ballsize, then the next
           ! check will also be false.
           !
-          box => node%box(1:)
           do i = 1, tp%dimen
             if (i .ne. cut_dim) then
-              dis = dis + dis2_from_bnd(sr%qv(i), box(i)%lower, box(i)%upper)
+              dis = dis + dis2_from_bnd(sr%qv(i), node%box(i)%lower, node%box(i)%upper)
               if (dis > ballsize) then
                 return
               end if
