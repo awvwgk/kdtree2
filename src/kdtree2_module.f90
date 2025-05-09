@@ -77,9 +77,6 @@ module kdtree2_module
   ! brute force of kdtree2_[n|r]_nearest
   public :: kdtree2_n_nearest_brute_force, kdtree2_r_nearest_brute_force
 
-  ! The maximum number of points to keep in a terminal node.
-  integer, parameter :: bucket_size = 12
-
   ! The priority queue consists of elements priority(1:heap_size), with
   ! associated payload(:).
   type pq
@@ -113,8 +110,11 @@ module kdtree2_module
 
   ! Global information about the tree, one per tree
   type :: kdtree2
-     ! dimensionality and total # of points
-    integer :: dimen = 0, n = 0
+    ! Dimensionality
+    integer :: dimen = 0
+
+    ! Total # of points
+    integer :: n = 0
 
     ! Copy of the input data
     real(kdkind), allocatable :: input_data(:, :)
@@ -135,11 +135,14 @@ module kdtree2_module
     ! bucket.
     integer, allocatable :: ind(:)
 
+    ! The maximum number of points to keep in a terminal node.
+    integer :: bucket_size = -1
+
     ! do we always sort output results?
-    logical       :: sort = .false.
+    logical       :: sort
 
     ! if (rearrange .eqv. .true.) then rearranged data has been stored
-    logical       :: rearrange = .false.
+    logical       :: rearrange
 
     ! Rearranged input data
     real(kdkind), allocatable :: rearranged_data(:, :)
@@ -189,11 +192,13 @@ contains
   !                      will be made for cache friendliness.
   !                      default=.true., as it speeds searches, but
   !                      building takes longer, and extra memory is used.
-  function kdtree2_create(input_data, dim, sort, rearrange) result(mr)
+  function kdtree2_create(input_data, dim, sort, rearrange, &
+       bucket_size) result(mr)
     type(kdtree2)                 :: mr
     integer, intent(in), optional :: dim
     logical, intent(in), optional :: sort
     logical, intent(in), optional :: rearrange
+    integer, intent(in), optional :: bucket_size
     real(kdkind)                  :: input_data(:, :)
     integer                       :: i
 
@@ -204,9 +209,6 @@ contains
     end if
     mr%n = size(input_data, 2)
 
-    allocate(mr%input_data(mr%dimen, mr%n))
-    mr%input_data(:, :) = input_data(1:mr%dimen, :)
-
     if (mr%dimen > mr%n) then
       write (*, *) 'KD_TREE_TRANS: likely user error.'
       write (*, *) 'KD_TREE_TRANS: You passed in matrix with D=', mr%dimen
@@ -215,6 +217,15 @@ contains
       write (*, *) 'KD_TREE_TRANS: with usually N >> D.   If N =approx= D, then a k-d tree'
       write (*, *) 'KD_TREE_TRANS: is not an appropriate data structure.'
       stop
+    end if
+
+    allocate(mr%input_data(mr%dimen, mr%n))
+    mr%input_data(:, :) = input_data(1:mr%dimen, :)
+
+    if (present(bucket_size)) then
+       mr%bucket_size = bucket_size
+    else
+       mr%bucket_size = 12
     end if
 
     call build_tree(mr)
@@ -273,7 +284,7 @@ contains
       return
     end if
 
-    if ((u - l) <= bucket_size) then
+    if ((u - l) <= tp%bucket_size) then
       !
       ! always compute true bounding box for terminal nodes.
       !
