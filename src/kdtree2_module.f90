@@ -83,7 +83,6 @@ module kdtree2_module
     ! There are heap_size active elements. Assumes the allocation is always
     ! sufficient. Will NOT increase it to match.
     integer :: heap_size = 0
-    type(kdtree2_result), pointer :: elems(:)
   end type pq
 
   type interval
@@ -543,7 +542,7 @@ contains
     sr%centeridx = -1
     sr%correltime = 0
     sr%overflow = .false.
-    sr%pq = pq_create(results)
+    sr%pq = pq_create()
 
     call search(tp, sr, tp%root, nn, results)
     if (tp%sort) call kdtree2_sort_results(nn, results)
@@ -565,7 +564,7 @@ contains
     sr%correltime = correltime
     sr%nn = nn
     sr%nfound = 0
-    sr%pq = pq_create(results)
+    sr%pq = pq_create()
 
     call search(tp, sr, tp%root, nn, results)
     if (tp%sort) call kdtree2_sort_results(nn, results)
@@ -722,7 +721,7 @@ contains
         call process_terminal_node_fixedball(tp, sr, node, &
              n_max, results)
       else
-        call process_terminal_node(tp, sr, node)
+        call process_terminal_node(tp, sr, node, n_max, results)
       end if
     else
       ! we are not on a terminal node
@@ -787,10 +786,12 @@ contains
 
   ! Look for actual near neighbors in 'node', and update
   ! the search results on the sr data structure.
-  subroutine process_terminal_node(tp, sr, node)
+  subroutine process_terminal_node(tp, sr, node, n_max, results)
     type(kdtree2), intent(in)               :: tp
     type(tree_search_record), intent(inout) :: sr
     type(tree_node), intent(in)             :: node
+    integer, intent(in)                     :: n_max
+    type(kdtree2_result), intent(inout)     :: results(n_max)
     integer                                 :: i, indexofi, k
     real(kdkind)                            :: sd, newpri
 
@@ -838,7 +839,7 @@ contains
         ! add this point unconditionally to fill list.
         !
         sr%nfound = sr%nfound + 1
-        newpri = pq_insert(sr%pq, sd, indexofi)
+        newpri = pq_insert(sr%pq, results, sd, indexofi)
         if (sr%nfound .eq. sr%nn) sr%ballsize = newpri
         ! we have just filled the working list.
         ! put the best square distance to the maximum value
@@ -852,7 +853,7 @@ contains
         ! belongs on the list.
         ! Hence we replace that with the current one.
         !
-        sr%ballsize = pq_replace_max(sr%pq, sd, indexofi)
+        sr%ballsize = pq_replace_max(sr%pq, results, sd, indexofi)
       end if
     end do mainloop
 
@@ -1053,52 +1054,32 @@ contains
     end do
   end subroutine heapsort_struct
 
-  ! Create a priority queue from ALREADY allocated array pointers for storage.
-  ! NOTE! It will NOT add any alements to the heap, i.e. any existing data in
-  ! the input arrays will NOT be used and may be overwritten.
-  function pq_create(results_in) result(res)
-    type(kdtree2_result), target :: results_in(:)
-    type(pq)                     :: res
-    integer                      :: nalloc
-
-    nalloc = size(results_in, 1)
-    if (nalloc .lt. 1) then
-      write (*, *) 'PQ_CREATE: error, input arrays must be allocated.'
-    end if
-    res%elems => results_in
+  ! Create an empty priority queue
+  function pq_create() result(res)
+    type(pq) :: res
     res%heap_size = 0
   end function pq_create
 
-  real(kdkind) function pq_maxpri(a)
-    type(pq), intent(in) :: a
-
-    if (a%heap_size > 0) then
-      pq_maxpri = a%elems(1)%dis
-    else
-      write (*, *) 'PQ_MAX_PRI: ERROR, heapsize < 1'
-      stop
-    end if
-  end function pq_maxpri
-
   ! Insert a new element and return the new maximum priority, which may or may
   ! not be the same as the old maximum priority.
-  real(kdkind) function pq_insert(a, dis, idx)
-    type(pq), intent(inout)  :: a
-    real(kdkind), intent(in) :: dis
-    integer, intent(in)      :: idx
-    integer                  :: i, isparent
-    real(kdkind)             :: parentdis
+  real(kdkind) function pq_insert(a, elems, dis, idx)
+    type(pq), intent(inout)             :: a
+    type(kdtree2_result), intent(inout) :: elems(*)
+    real(kdkind), intent(in)            :: dis
+    integer, intent(in)                 :: idx
+    integer                             :: i, isparent
+    real(kdkind)                        :: parentdis
 
     a%heap_size = a%heap_size + 1
     i = a%heap_size
 
     do while (i .gt. 1)
       isparent = int(i/2)
-      parentdis = a%elems(isparent)%dis
+      parentdis = elems(isparent)%dis
       if (dis .gt. parentdis) then
         ! move what was in i's parent into i.
-        a%elems(i)%dis = parentdis
-        a%elems(i)%idx = a%elems(isparent)%idx
+        elems(i)%dis = parentdis
+        elems(i)%idx = elems(isparent)%idx
         i = isparent
       else
         exit
@@ -1106,22 +1087,23 @@ contains
     end do
 
     ! insert the element at the determined position
-    a%elems(i)%dis = dis
-    a%elems(i)%idx = idx
+    elems(i)%dis = dis
+    elems(i)%idx = idx
 
-    pq_insert = a%elems(1)%dis
+    pq_insert = elems(1)%dis
 
   end function pq_insert
 
   ! Replace the extant maximum priority element in the PQ with (dis,idx).
   ! Return the new maximum priority, which may be larger or smaller than the
   ! old one.
-  real(kdkind) function pq_replace_max(a, dis, idx)
-    type(pq), intent(inout)  :: a
-    real(kdkind), intent(in) :: dis
-    integer, intent(in)      :: idx
-    integer                  :: parent, child, N
-    real(kdkind)             :: prichild, prichildp1
+  real(kdkind) function pq_replace_max(a, elems, dis, idx)
+    type(pq), intent(inout)             :: a
+    type(kdtree2_result), intent(inout) :: elems(*)
+    real(kdkind), intent(in)            :: dis
+    integer, intent(in)                 :: idx
+    integer                             :: parent, child, N
+    real(kdkind)                        :: prichild, prichildp1
 
     N = a%heap_size
     if (N .ge. 1) then
@@ -1129,7 +1111,7 @@ contains
       child = 2
 
       loop: do while (child .le. N)
-        prichild = a%elems(child)%dis
+        prichild = elems(child)%dis
 
         !
         ! posibly child+1 has higher priority, and if
@@ -1137,7 +1119,7 @@ contains
         !
 
         if (child .lt. N) then
-          prichildp1 = a%elems(child + 1)%dis
+          prichildp1 = elems(child + 1)%dis
           if (prichild .lt. prichildp1) then
             child = child + 1
             prichild = prichildp1
@@ -1150,17 +1132,17 @@ contains
           ! bigger than either children's priority.
         else
           ! move child into parent.
-          a%elems(parent) = a%elems(child)
+          elems(parent) = elems(child)
           parent = child
           child = 2*parent
         end if
       end do loop
-      a%elems(parent)%dis = dis
-      a%elems(parent)%idx = idx
-      pq_replace_max = a%elems(1)%dis
+      elems(parent)%dis = dis
+      elems(parent)%idx = idx
+      pq_replace_max = elems(1)%dis
     else
-      a%elems(1)%dis = dis
-      a%elems(1)%idx = idx
+      elems(1)%dis = dis
+      elems(1)%idx = idx
       pq_replace_max = dis
     end if
 
