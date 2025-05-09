@@ -14,14 +14,14 @@ endif
 
 # Compiler flags
 ifeq ($(F90), ifort)
-	FFLAGS := -warn all -O3 -ipo -fno-alias -module $(BUILD_DIR)
+	FFLAGS := -warn all -O3 -qopenmp -fno-alias -module $(BUILD_DIR)
 	ifeq ($(DEBUG), 1)
 		FFLAGS += -g -check all -traceback
 	endif
 endif
 
 ifeq ($(F90), gfortran)
-	FFLAGS := -Wall -O3 -flto -J $(BUILD_DIR)
+	FFLAGS := -Wall -O3 -fopenmp -J $(BUILD_DIR)
 	ifeq ($(DEBUG), 1)
 		FFLAGS += -g -fcheck=all
 	endif
