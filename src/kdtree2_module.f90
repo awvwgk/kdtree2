@@ -49,11 +49,15 @@
 ! for speed, as it its operations will be called many times during searches
 ! of large numbers of neighbors.
 module kdtree2_module
+  use iso_fortran_env, only: error_unit
 
   implicit none
   private
 
   integer, parameter :: kdkind = kind(0.0d0)
+
+  ! Warn user if dimension exceeds number of points and this threshold
+  integer, parameter :: warning_dimension_threshold = 100
 
   !-------------DATA TYPE, CREATION, DELETION---------------------
   public :: kdkind
@@ -63,7 +67,6 @@ module kdtree2_module
   ! Return fixed number of nearest neighbors around arbitrary vector,
   ! or extant point in dataset, with decorrelation window.
   public :: kdtree2_n_nearest, kdtree2_n_nearest_around_point
-
 
   ! Return points within a fixed ball of arb vector/extant point
   public :: kdtree2_r_nearest, kdtree2_r_nearest_around_point
@@ -208,14 +211,10 @@ contains
     end if
     mr%n = size(input_data, 2)
 
-    if (mr%dimen > mr%n) then
-      write (*, *) 'KD_TREE_TRANS: likely user error.'
-      write (*, *) 'KD_TREE_TRANS: You passed in matrix with D=', mr%dimen
-      write (*, *) 'KD_TREE_TRANS: and N=', mr%n
-      write (*, *) 'KD_TREE_TRANS: note, that new format is data(1:D,1:N)'
-      write (*, *) 'KD_TREE_TRANS: with usually N >> D.   If N =approx= D, then a k-d tree'
-      write (*, *) 'KD_TREE_TRANS: is not an appropriate data structure.'
-      stop
+    if (mr%dimen > max(mr%n, warning_dimension_threshold)) then
+      write (error_unit, '(A,A,I0,A,I0,A)') 'kdtree2_create warning: ', &
+           'n_dim = ', mr%dimen, ', n_points = ', mr%n, &
+           ' - typically n_dim < n_points'
     end if
 
     allocate(mr%input_data(mr%dimen, mr%n))
@@ -602,9 +601,8 @@ contains
     if (tp%sort) call kdtree2_sort_results(nfound, results)
 
     if (sr%overflow) then
-      write (*, *) 'KD_TREE_TRANS: warning! return from kdtree2_r_nearest found more neighbors'
-      write (*, *) 'KD_TREE_TRANS: than storage was provided for.  Answer is NOT smallest ball'
-      write (*, *) 'KD_TREE_TRANS: with that number of neighbors!  I.e. it is wrong.'
+      write (error_unit, '(A)') 'kdtree2_r_nearest warning: nfound > nalloc'
+      write (error_unit, '(A)') 'Answer is not smallest ball (thus wrong)'
     end if
 
   end subroutine kdtree2_r_nearest
@@ -636,9 +634,9 @@ contains
     if (tp%sort) call kdtree2_sort_results(nfound, results)
 
     if (sr%overflow) then
-      write (*, *) 'KD_TREE_TRANS: warning! return from kdtree2_r_nearest found more neighbors'
-      write (*, *) 'KD_TREE_TRANS: than storage was provided for.  Answer is NOT smallest ball'
-      write (*, *) 'KD_TREE_TRANS: with that number of neighbors!  I.e. it is wrong.'
+      write (error_unit, '(A)') &
+           'kdtree2_r_nearest_around_point warning: nfound > nalloc'
+      write (error_unit, '(A)') 'Answer is not smallest ball (thus wrong)'
     end if
 
   end subroutine kdtree2_r_nearest_around_point
