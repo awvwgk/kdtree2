@@ -57,7 +57,7 @@ module kdtree2_module
   integer, parameter :: kdkind = kind(0.0d0)
 
   ! Warn user if dimension exceeds number of points and this threshold
-  integer, parameter :: warning_dimension_threshold = 100
+  integer, parameter :: warning_ndim_threshold = 20
 
   !-------------DATA TYPE, CREATION, DELETION---------------------
   public :: kdkind
@@ -151,6 +151,9 @@ module kdtree2_module
 
     ! Root pointer of the tree
     type(tree_node), pointer :: root => null()
+
+    ! If .true. print warnings to stderr
+    logical :: verbose
   end type kdtree2
 
   ! One of these is created for each search.
@@ -195,12 +198,13 @@ contains
   !                      default=.true., as it speeds searches, but
   !                      building takes longer, and extra memory is used.
   function kdtree2_create(input_data, dim, sort, rearrange, &
-       bucket_size) result(mr)
+       bucket_size, verbose) result(mr)
     type(kdtree2)                 :: mr
     integer, intent(in), optional :: dim
     logical, intent(in), optional :: sort
     logical, intent(in), optional :: rearrange
     integer, intent(in), optional :: bucket_size
+    logical, intent(in), optional :: verbose
     real(kdkind)                  :: input_data(:, :)
     integer                       :: i
 
@@ -211,7 +215,13 @@ contains
     end if
     mr%n = size(input_data, 2)
 
-    if (mr%dimen > max(mr%n, warning_dimension_threshold)) then
+    if (present(verbose)) then
+       mr%verbose = verbose
+    else
+       mr%verbose = .true.
+    end if
+
+    if (mr%dimen > max(mr%n, warning_ndim_threshold) .and. mr%verbose) then
       write (error_unit, '(A,A,I0,A,I0,A)') 'kdtree2_create warning: ', &
            'n_dim = ', mr%dimen, ', n_points = ', mr%n, &
            ' - typically n_dim < n_points'
@@ -600,7 +610,7 @@ contains
     nfound = sr%nfound
     if (tp%sort) call kdtree2_sort_results(nfound, results)
 
-    if (sr%overflow) then
+    if (sr%overflow .and. tp%verbose) then
       write (error_unit, '(A)') 'kdtree2_r_nearest warning: nfound > nalloc'
       write (error_unit, '(A)') 'Answer is not smallest ball (thus wrong)'
     end if
@@ -633,7 +643,7 @@ contains
     nfound = sr%nfound
     if (tp%sort) call kdtree2_sort_results(nfound, results)
 
-    if (sr%overflow) then
+    if (sr%overflow .and. tp%verbose) then
       write (error_unit, '(A)') &
            'kdtree2_r_nearest_around_point warning: nfound > nalloc'
       write (error_unit, '(A)') 'Answer is not smallest ball (thus wrong)'
