@@ -2,3 +2,7 @@
 .sconf_temp
 config.log
 build
+/tests/kdtree2_benchmark
+/tests/kdtree2_test
+/tests/kdtree_test
+/tests/kdtree2_test_openmp
