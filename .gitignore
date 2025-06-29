@@ -6,3 +6,4 @@ build
 /tests/kdtree2_test
 /tests/kdtree_test
 /tests/kdtree2_test_openmp
+/tests/kdtree2_test_scale

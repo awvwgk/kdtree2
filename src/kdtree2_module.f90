@@ -276,9 +276,9 @@ contains
     type(kdtree2), intent(inout)         :: tp
     type(tree_node), pointer, intent(in) :: parent
     integer, intent(In)                  :: l, u
-    integer                              :: i, c, m, dimen
+    integer                              :: i, c, m, dimen, n_below_average
     logical                              :: recompute
-    real(kdkind)                         :: average
+    real(kdkind)                         :: average, balance
 
     ! first compute min and max
     dimen = tp%dimen
@@ -333,22 +333,18 @@ contains
       ! c is the identity of which coordinate has the greatest spread.
       c = maxloc(res%box(1:dimen)%upper - res%box(1:dimen)%lower, 1)
 
-      if (.false.) then
-        ! select exact median to have fully balanced tree.
+      ! Determine arithmetic average
+      average = sum(tp%input_data(c, tp%ind(l:u)))/real(u - l + 1, kdkind)
+
+      ! Determine how balanced a split on the average would be
+      n_below_average = count(tp%input_data(c, tp%ind(l:u)) < average)
+      balance = n_below_average / real(u - l + 1, kdkind)
+
+      if (balance < 0.25_kdkind .or. balance > 0.75_kdkind) then
+        ! Bad balance, so select exact median to have 'perfect' balance
         m = (l + u)/2
         call select_on_coordinate(tp%input_data, tp%ind, c, m, l, u)
       else
-        ! select point halfway between min and max, as per A. Moore,
-        ! who says this helps in some degenerate cases, or
-        ! actual arithmetic average.
-        if (.true.) then
-          ! actually compute average
-          average = sum(tp%input_data(c, tp%ind(l:u)))/real(u - l + 1, kdkind)
-        else
-          average = (res%box(c)%upper + res%box(c)%lower)/2.0
-        end if
-
-        res%cut_val = average
         m = select_on_coordinate_value(tp%input_data, tp%ind, c, average, l, u)
       end if
 
